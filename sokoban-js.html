@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sokoban Game</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+        }
+        /* #gameContainer {
+            display: grid;
+            grid-template-columns: repeat(10, 50px);
+            grid-template-rows: repeat(10, 50px);
+            gap: 2px;
+            justify-content: center;
+        } */
+        #buttonsContainer {
+            display: grid;
+            grid-template-columns: repeat(3, 200px);
+            grid-template-rows: repeat(3, 200px);
+            size: 64px;
+            gap: 20px;
+            justify-content: center;
+        }
+        .cell {
+            width: 50px;
+            height: 50px;
+            border: 1px solid #ccc;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .player {
+            background-color: #00f;
+        }
+        .box {
+            background-color: #f22;
+        }
+        .target {
+            background-color: #9f9;
+        }
+        .boxOnTarget {
+            background-color: #fc0;
+        }
+        .playerOnTarget {
+            background-color: #fc0;
+        }
+        .empty {
+            background-color: #fff;
+        }
+        .wall {
+            background-color: #eee;
+        }
+    </style>
+</head>
+<body>
+    <h1>Sokoban Game</h1>
+    <div id="gameContainer"></div>
+    <script src="ExtremelyEasy.sok.js"></script>
+    <!--<script src="GRIGoRusha.sok.js"></script>-->
+    <script>
+        let levels = undefined;
+        let level = undefined;
+        let numLevel = 0;
+
+        const EMPTY = 0;
+        const WALL = 1;
+        const PLAYER = 2;
+        const BOX = 3;
+        const TARGET = 4;
+        const PLAYER_ON_TARGET = 5;
+        const BOX_ON_TARGET = 6;
+        
+        // Read .sok file containing Sokoban levels into arrays
+        function get_levels() {
+            const lines = sok_file.split('\n');
+            const level_titles = [];
+            const levels = [];
+            let level = [];
+            prev_line = '::';
+            line_label = 'levelset_desc';
+            // console.log("Number of lines: " + lines.length);
+            for (const line of lines) {
+                // console.log("Line label: " + line_label);
+                // console.log("Line: " + line);
+                if ((line_label == "levelset_desc" || line_label == "desc") && line == "" && prev_line == "") {
+                    line_label = 'title';
+                    // console.log('title');
+                } else if (line_label == 'title') {
+                    level_titles.push(line);
+                    line_label = 'empty_line_before_level';
+                    // console.log('empty_line_before_level');
+                } else if (line_label == 'empty_line_before_level') {
+                    line_label = 'level';
+                    // console.log('level');
+                    if (line.length > 0) {
+                        console.error('Error: expected empty line before level');
+                    }
+                } else if (line_label == 'level') {
+                    if (line.length == 0) {
+                        levels.push(level);
+                        level = [];
+                        line_label = 'desc';
+                        // console.log('desc');
+                    } else {
+                        level.push(line.split(''));
+                    }
+                } else if (line_label == 'desc') {
+                    if (level.length > 0) {
+                        levels.push(level);
+                        level = [];
+                    } else { // no else needed
+                        // console.error('Error: expected level before description');
+                    }
+                }
+                prev_line = line;
+            }
+            console.log("Number of levels: " + levels.length);
+            // console.log("All levels: " + levels);
+            return levels;
+        }
+
+        function sok_level_to_grid(level) {
+            const grid = [];
+            let playerPos = { x: 1, y: 1 };
+            for (let y = 0; y < level.length; y++) {
+                const row = [];
+                for (let x = 0; x < level[y].length; x++) {
+                    switch (level[y][x]) {
+                        case '#':
+                            row.push(WALL);
+                            break;
+                        case '@':
+                            row.push(PLAYER);
+                            playerPos = { x, y };
+                            break;
+                        case '$':
+                            row.push(BOX);
+                            break;
+                        case '.':
+                            row.push(TARGET);
+                            break;
+                        case '*':
+                            row.push(BOX_ON_TARGET);
+                            break;
+                        case '+':
+                            row.push(PLAYER_ON_TARGET);
+                            playerPos = { x, y };
+                            break;
+                        case ' ':
+                            row.push(EMPTY);
+                            break;
+                        default:
+                            console.error('Unknown character in level:', level[y][x]);
+                    }
+                }
+                grid.push(row);
+            }
+            return [grid, playerPos];
+        }
+
+        // const level = [
+        //     [WALL, WALL, WALL, WALL, WALL, WALL, WALL, WALL, WALL, WALL],
+        //     [WALL, PLAYER, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, TARGET, EMPTY, WALL],
+        //     [WALL, EMPTY, BOX, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, WALL],
+        //     [WALL, EMPTY, EMPTY, WALL, WALL, EMPTY, WALL, WALL, WALL, WALL],
+        //     [WALL, EMPTY, EMPTY, EMPTY, BOX, EMPTY, EMPTY, EMPTY, EMPTY, WALL],
+        //     [WALL, EMPTY, EMPTY, WALL, WALL, WALL, WALL, WALL, WALL, WALL],
+        //     [WALL, EMPTY, EMPTY, EMPTY, TARGET, EMPTY, EMPTY, EMPTY, EMPTY, WALL],
+        //     [WALL, WALL, WALL, WALL, WALL, WALL, WALL, WALL, WALL, WALL]
+        // ];
+
+        // let playerPos = { x: 1, y: 1 };
+
+        function renderGrid() {
+            if (levels == undefined) {
+                levels = get_levels('./ExtremelyEasy.sok');
+                numLevel = 0;
+            }
+            if (level == undefined) {
+                [level, playerPos] = sok_level_to_grid(levels[numLevel]);
+            }
+            gridHeight = level.length;
+            gridWidth = Math.max.apply(null, level.map(row => row.length));
+            /* #gameContainer {
+                display: grid;
+                grid-template-columns: repeat(10, 50px);
+                grid-template-rows: repeat(10, 50px);
+                gap: 2px;
+                justify-content: center;
+            } */
+            const gridContainer = document.createElement('div')
+            gridContainer.setAttribute("id", 'gridContainer')
+            gridContainer.setAttribute("style", `
+                display: grid;
+                grid-template-columns: repeat(${gridWidth}, 50px);
+                grid-template-rows: repeat(${gridHeight}, 50px);
+                gap: 2px;
+                justify-content: center;
+            `);
+            gameContainer.innerHTML = ''; // Clear previous grid
+            // document.getElementById('gameContainer').removeChild(gridContainer);
+            gameContainer.appendChild(gridContainer);
+
+            // console.log('level: ', level);
+            for (let y = 0; y < gridHeight; y++) {
+                for (let x = 0; x < gridWidth; x++) {
+                    const cell = document.createElement('div');
+                    cell.classList.add('cell');
+                    // console.log(gridHeight, y, gridWidth, x, level[y], level[y][x]);
+                    if (!level) { console.log('level undefined'); }
+                    if (!level[y]) { console.log('level undefined'); }
+                    switch (level[y][x]) {
+                        case WALL:
+                            cell.classList.add('wall');
+                            break;
+                        case PLAYER:
+                            cell.classList.add('player');
+                            break;
+                        case BOX:
+                            cell.classList.add('box');
+                            break;
+                        case TARGET:
+                            cell.classList.add('target');
+                            break;
+                        case BOX_ON_TARGET:
+                            cell.classList.add('boxOnTarget');
+                            break;
+                        case PLAYER_ON_TARGET:
+                            cell.classList.add('playerOnTarget');
+                            break;
+                        default:
+                            cell.classList.add('empty');
+                    }
+                    gridContainer.appendChild(cell);
+                }
+            }
+        }
+
+        function nextLevel() {
+            if (numLevel + 1 < levels.length) {
+                numLevel += 1;
+                level = undefined;
+                console.log('numLevel', numLevel);
+                renderGrid();
+            }
+        }
+
+        function prevLevel() {
+            if (numLevel - 1 > 0) {
+                numLevel -= 1;
+                level = undefined;
+                console.log('numLevel', numLevel);
+                renderGrid();
+            }
+        }
+
+        function movePlayer(dx, dy) {
+            const newX = playerPos.x + dx;
+            const newY = playerPos.y + dy;
+
+            if (isWalkable(newY, newX)) { // just walk
+                if (isTarget(playerPos.y, playerPos.x)) {
+                    level[playerPos.y][playerPos.x] = TARGET;
+                } else {
+                    level[playerPos.y][playerPos.x] = EMPTY;
+                }
+                playerPos.x = newX;
+                playerPos.y = newY;
+                level[playerPos.y][playerPos.x] = PLAYER;
+                renderGrid();
+            } else if (isBox(newY, newX)) { // push box
+                const newBoxX = newX + dx;
+                const newBoxY = newY + dy;
+                if (isWalkable(newBoxY, newBoxX)) {
+                    if (isTarget(newBoxY, newBoxX)) {
+                        level[newBoxY][newBoxX] = BOX_ON_TARGET;
+                    } else {
+                        level[newBoxY][newBoxX] = BOX;
+                    }
+                    level[newY][newX] = PLAYER;
+                    console.log('newX', newX, 'newY', newY, 'playerPos.x', playerPos.x, 'playerPos.y', playerPos.y, isTarget(playerPos.y, playerPos.x));
+                    if (isTarget(playerPos.y, playerPos.x)) {
+                        level[playerPos.y][playerPos.x] = TARGET;
+                    } else {
+                        level[playerPos.y][playerPos.x] = EMPTY;
+                    }
+                    playerPos.x = newX;
+                    playerPos.y = newY;
+                    renderGrid();
+                }
+            }
+        }
+
+        function isWalkable(y, x) {
+            return level[y] && level[y][x] !== WALL && level[y][x] !== BOX && level[y][x] !== BOX_ON_TARGET;
+        }
+
+        function isBox(y, x) {
+            return level[y] && (level[y][x] === BOX || level[y][x] === BOX_ON_TARGET);
+        }
+
+        function isTarget(y, x) {
+            console.log('isTarget', x, y, level[y][x]);
+            return level[y] && (level[y][x] === TARGET || level[y][x] === BOX_ON_TARGET || level[y][x] === PLAYER_ON_TARGET);
+        }
+
+        function movePlayerUp() { movePlayer(0, -1); }
+        function movePlayerDown() { movePlayer(0, 1); }
+        function movePlayerLeft() { movePlayer(-1, 0); }
+        function movePlayerRight() { movePlayer(1, 0); }
+
+        function handleKeyPress(event) {
+            switch (event.key) {
+                case 'ArrowUp': movePlayerUp(); break;
+                case 'ArrowDown': movePlayerDown(); break;
+                case 'ArrowLeft': movePlayerLeft(); break;
+                case 'ArrowRight': movePlayerRight(); break;
+            }
+        }
+
+        window.addEventListener('keydown', handleKeyPress);
+
+        renderGrid();
+    </script>
+    <div id="buttonsContainer"></div>
+    <script>
+        const buttonsContainer = document.getElementById('buttonsContainer');
+        function addButton(buttonsContainer, text, func, ...args) {
+            button = document.createElement('button')
+            button.textContent = text;
+            button.classList = ['button']
+            button.addEventListener('click', () => func(args));
+            buttonsContainer.appendChild(button);            
+        }
+
+        addButton(buttonsContainer, '< 1', prevLevel)
+        addButton(buttonsContainer, '↑', movePlayerUp)
+        addButton(buttonsContainer, '1 >', nextLevel)
+        addButton(buttonsContainer, '←', movePlayerLeft)
+        addButton(buttonsContainer, '↓', movePlayerDown)
+        addButton(buttonsContainer, '→', movePlayerRight)
+        addButton(buttonsContainer, ' ', prevLevel)
+        addButton(buttonsContainer, ' ', movePlayerUp)
+        addButton(buttonsContainer, ' ', nextLevel)
+
+    </script>
+
+</body>
+</html>
