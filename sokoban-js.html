@@ -9,13 +9,9 @@
             font-family: Arial, sans-serif;
             text-align: center;
         }
-        /* #gameContainer {
-            display: grid;
-            grid-template-columns: repeat(10, 50px);
-            grid-template-rows: repeat(10, 50px);
-            gap: 2px;
-            justify-content: center;
-        } */
+        .button {
+            touch-action: manipulation;
+        }
         #buttonsContainer {
             display: grid;
             grid-template-columns: repeat(3, 200px);
@@ -27,7 +23,7 @@
         .cell {
             width: 50px;
             height: 50px;
-            border: 1px solid #ccc;
+            border: 0px solid #ccc;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -39,19 +35,19 @@
             background-color: #f22;
         }
         .target {
-            background-color: #9f9;
+            background-color: #fc0;
         }
         .boxOnTarget {
-            background-color: #fc0;
+            background-color: #5d5;
         }
         .playerOnTarget {
-            background-color: #fc0;
+            background-color: #70a;
         }
         .empty {
             background-color: #fff;
         }
         .wall {
-            background-color: #eee;
+            background-color: #ccc;
         }
     </style>
 </head>
@@ -174,6 +170,24 @@
 
         // let playerPos = { x: 1, y: 1 };
 
+        function getClosestPlayer(gridContainer, x, y) {
+            players = []
+            cells = gridContainer.getElementsByClassName("cell")
+            if (cells) {
+                for (cell of cells) {
+                    if (cell.classList.contains('player') || cell.classList.contains('playerOnTarget')) {
+                        players.push([cell.getAttribute("x"), cell.getAttribute("y")])
+                    }
+                }
+                if (players.length != 1) {
+                    console.log(`Number of players is ${players.length}! Players: ${players}`)
+                    return null
+                }
+                return players[0]
+            }
+            return null
+        }
+
         function renderGrid() {
             if (levels == undefined) {
                 levels = get_levels('./ExtremelyEasy.sok');
@@ -209,6 +223,8 @@
                 for (let x = 0; x < gridWidth; x++) {
                     const cell = document.createElement('div');
                     cell.classList.add('cell');
+                    cell.setAttribute('x', x)
+                    cell.setAttribute('y', y)
                     // console.log(gridHeight, y, gridWidth, x, level[y], level[y][x]);
                     if (!level) { console.log('level undefined'); }
                     if (!level[y]) { console.log('level undefined'); }
@@ -234,6 +250,26 @@
                         default:
                             cell.classList.add('empty');
                     }
+                    cell.addEventListener('click', () => {
+                        // TODO: get closest player, subtract, scale down to 0 or 1?, at least some must be 0
+                        // playerPos = getClosestPlayer(gridContainer, x, y)
+                        px = playerPos.x//[0]
+                        py = playerPos.y//[1]
+                        console.log(`playerPos: ${playerPos}`)
+                        dx = x - px
+                        dy = y - py
+                        // console.log(`dx: ${dx}, dy: ${dy}`)
+                        // if ((dx == 0) && (dy != 0)) {
+                        if (Math.abs(dx) < Math.abs(dy)) {
+                                // console.log(`movePlayer(0, ${dy/Math.abs(dy)})`)
+                            movePlayer(0, dy/Math.abs(dy))
+                        // } else if ((dx != 0) && (dy == 0)) {
+                        } else if (Math.abs(dx) > Math.abs(dy)) {
+                            // console.log(`movePlayer(${dx/Math.abs(dx)}, 0)`)
+                            movePlayer(dx/Math.abs(dx), 0)
+                        }
+                    });
+
                     gridContainer.appendChild(cell);
                 }
             }
@@ -269,7 +305,11 @@
                 }
                 playerPos.x = newX;
                 playerPos.y = newY;
-                level[playerPos.y][playerPos.x] = PLAYER;
+                if (isTarget(playerPos.y, playerPos.x)) {
+                    level[playerPos.y][playerPos.x] = PLAYER_ON_TARGET;
+                } else {
+                    level[playerPos.y][playerPos.x] = PLAYER;
+                }
                 renderGrid();
             } else if (isBox(newY, newX)) { // push box
                 const newBoxX = newX + dx;
@@ -280,7 +320,11 @@
                     } else {
                         level[newBoxY][newBoxX] = BOX;
                     }
-                    level[newY][newX] = PLAYER;
+                    if (isTarget(newY, newX)) {
+                        level[newY][newX] = PLAYER_ON_TARGET;
+                    } else {
+                        level[newY][newX] = PLAYER;
+                    }
                     console.log('newX', newX, 'newY', newY, 'playerPos.x', playerPos.x, 'playerPos.y', playerPos.y, isTarget(playerPos.y, playerPos.x));
                     if (isTarget(playerPos.y, playerPos.x)) {
                         level[playerPos.y][playerPos.x] = TARGET;
